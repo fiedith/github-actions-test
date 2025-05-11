@@ -1,0 +1,75 @@
+version: '3.8'
+
+networks:
+  elk-network:
+    driver: bridge
+
+services:
+  elasticsearch:
+    build:
+      context: ./infra/elasticsearch
+      dockerfile: Dockerfile
+      args:
+        ELK_VERSION: ${ELK_VERSION}
+    container_name: cicd-test-elasticsearch
+    env_file:
+      - .env
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=${ES_JAVA_OPTS}
+      - xpack.security.enabled=false
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - action.auto_create_index=false
+      - ELASTICSEARCH_PLUGINS=analysis-nori,analysis-icu
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+      - ./infra/elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
+    ports:
+      - "${ELASTIC_PORT}:9200"
+    networks:
+      - elk-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${ELK_VERSION}
+    container_name: cicd-test-kibana
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "${KIBANA_PORT}:5601"
+    networks:
+      - elk-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cicd-test-app
+    env_file:
+      - .env
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      kibana:
+        condition: service_started
+    ports:
+      - "${APP_PORT}:8080"
+    environment:
+      - SPRING_ELASTICSEARCH_URIS=${SPRING_ELASTICSEARCH_URIS}
+      - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL}
+      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
+    networks:
+      - elk-network
+
+volumes:
+  esdata:
