@@ -17,8 +17,13 @@ bin/
 !**/src/main/**/bin/
 !**/src/test/**/bin/
 
+### macOS ###
+.DS_Store
+.AppleDouble
+.LSOverride
+
 ### IntelliJ IDEA ###
-.idea
+.idea/**
 *.iws
 *.iml
 *.ipr
