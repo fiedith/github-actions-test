@@ -51,9 +51,21 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            cd ~/pawong/backend
-            docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-            docker pull $IMAGE_NAME:latest
-            docker tag $IMAGE_NAME:latest $IMAGE_NAME:current
+            # 1) 올바른 배포 디렉터리로 이동
+            cd /home/${{ secrets.DEPLOY_USER }}/backend
+
+            # 2) IMAGE_NAME, TAG 재정의
+            IMAGE_NAME=${{ secrets.DOCKERHUB_USERNAME }}/backend
+            TAG=${{ github.sha }}
+
+            # 3) 안전한 로그인 (password-stdin)
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" \
+              | docker login --username "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+            # 4) 이미지 풀 & 태그 교체
+            docker pull "${IMAGE_NAME}:latest"
+            docker tag "${IMAGE_NAME}:latest" "${IMAGE_NAME}:current"
+
+            # 5) Compose 파일이 있는 위치에서만 pull/up
             docker-compose pull
             docker-compose up -d --no-deps app
