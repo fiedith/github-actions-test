@@ -27,7 +27,9 @@ services:
     ports:
       - "${ELASTIC_PORT}:9200"
     networks:
-      - elk-network
+      elk-network:
+        aliases:
+          - elasticsearch
     healthcheck:
       test: ["CMD-SHELL", "curl -s http://localhost:9200 || exit 1"]
       interval: 30s
@@ -48,6 +50,12 @@ services:
       - "${KIBANA_PORT}:5601"
     networks:
       - elk-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f ${KIBANA_HEALTHCHECK_URL} || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
 
   app:
     build:
