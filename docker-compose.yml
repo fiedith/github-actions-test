@@ -2,12 +2,16 @@ version: '3.8'
 
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: spring-boot-app
+    image: pawong/backend:latest
+    container_name: backend-app
+
     env_file:
       - .env
+
     ports:
       - "${APP_PORT}:8080"
-    restart: unless-stopped
+    restart: always
+
+    # only your profile var here; the rest come from .env
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
