@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 env:
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/backend
@@ -21,6 +24,13 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
 
       - name: Build with Gradle
         run: ./gradlew clean bootJar -x test
@@ -44,28 +54,37 @@ jobs:
           docker push $IMAGE_NAME:latest
           docker push $IMAGE_NAME:$TAG
 
-      - name: SSH to deploy server and update
+      - name: SSH & deploy
         uses: appleboy/ssh-action@v0.1.6
         with:
           host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          username: ubuntu
+          key:      ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            # 1) 올바른 배포 디렉터리로 이동
-            cd /home/${{ secrets.DEPLOY_USER }}/backend
+            # 1) 고정 배포 디렉토리로 이동 (없으면 생성)
+            mkdir -p /home/ubuntu/deploy
+            cd       /home/ubuntu/deploy
 
-            # 2) IMAGE_NAME, TAG 재정의
-            IMAGE_NAME=${{ secrets.DOCKERHUB_USERNAME }}/backend
-            TAG=${{ github.sha }}
+            # 2) docker-compose.yml 파일이 없으면 생성
+            if [ ! -f docker-compose.yml ]; then
+              cat > docker-compose.yml << 'EOL'
+            version: '3'
+            services:
+              app:
+                image: ${{ secrets.DOCKERHUB_USERNAME }}/backend:latest
+                container_name: backend-app
+                restart: always
+                ports:
+                  - "8080:8080"
+                environment:
+                  - SPRING_PROFILES_ACTIVE=prod
+            EOL
+            fi
 
-            # 3) 안전한 로그인 (password-stdin)
-            echo "${{ secrets.DOCKERHUB_TOKEN }}" \
-              | docker login --username "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+            # 3) Docker Hub 로그인 (password-stdin)
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | sudo docker login --username "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-            # 4) 이미지 풀 & 태그 교체
-            docker pull "${IMAGE_NAME}:latest"
-            docker tag "${IMAGE_NAME}:latest" "${IMAGE_NAME}:current"
-
-            # 5) Compose 파일이 있는 위치에서만 pull/up
-            docker-compose pull
-            docker-compose up -d --no-deps app
+            # 4) 이미지 풀 & 업데이트
+            sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/backend:latest
+            sudo docker-compose pull
+            sudo docker-compose up -d --no-deps app
