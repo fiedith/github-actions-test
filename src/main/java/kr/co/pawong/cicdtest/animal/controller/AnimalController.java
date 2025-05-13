@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Animals", description = "동물 CRUD API")
 @RestController
-@RequestMapping(path = "/api/v1/animals")
+@RequestMapping(path = "/api/v1/adoptions")
 @RequiredArgsConstructor
 public class AnimalController {
 
