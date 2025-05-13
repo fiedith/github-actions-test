@@ -2,10 +2,8 @@ version: '3.8'
 
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: spring-boot-app
+    image: pawong/backend:latest      # ← pull this instead of building
+    container_name: backend-app       # ← match the name you’ve been inspecting
     env_file:
       - .env
     ports:
